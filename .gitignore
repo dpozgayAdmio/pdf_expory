@@ -1,0 +1,8 @@
+__pycache__/
+.venv
+SGL_files
+companie popis.txt
+companies.txt
+*.pdf
+export.pdf
+sql.txt
