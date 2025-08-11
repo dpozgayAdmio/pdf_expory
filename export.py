@@ -7,7 +7,7 @@ import win32com.client
 import warnings
 
 from datetime import datetime
-from colorama import init, Fore, Style
+from colorama import init, Fore
 
 MONTHS = {
     1: {"leden", "january", "január", "januar"},
@@ -74,6 +74,7 @@ def get_sheets(path, month, year, tryes=None):
 
 def read(df, month, sheet, celkom=1):
     date = None
+    index = 0
     for index, row in df.iterrows():
         if index == 11 and row[4] == "DUZP":
             date = row[5]
@@ -96,7 +97,6 @@ def read(df, month, sheet, celkom=1):
                     my_print(ERROR, f"invalid mont: {row[1].lower()} {date.month}")
                 return  0, date
         except AttributeError:
-            # my_print(ERROR, f"EXEPT error with: {row[1]}")
             if pd.isna(row[1]):
                 # TODO: zvazil by som continue alebo to sem dodat
                 my_print(ERROR, "cant find month text")
@@ -126,7 +126,6 @@ def save_ugly(df, row):
     fig, ax = plt.subplots(figsize=(12, 5))
     ax.axis('tight')
     ax.axis('off')
-    table = ax.table(cellText=df_cut.values, colLabels=df_cut.columns, loc='center')
 
     # 4. Ulož ako PDF
     plt.savefig("export.pdf", bbox_inches='tight')
