@@ -24,6 +24,20 @@ MONTHS = {
     12: {"prosinec", "december"}
 }
 
+ERROR = Fore.RED
+WARNING = Fore.YELLOW
+INFO = Fore.BLUE
+SKIPP = Fore.CYAN
+GOOD = Fore.GREEN
+
+def my_print(status, text):
+    with open("log.txt", "a") as file:
+        file.write(text + "\n")
+    if status is not None:
+        print(status + text)
+    else:
+        print(text)
+    return 0
 
 def get_sheets(path, month, year, tryes=None):
     xls = None
@@ -32,7 +46,7 @@ def get_sheets(path, month, year, tryes=None):
             xls = pd.ExcelFile(path)
             break
         except PermissionError:
-            print(".")
+            print(Fore.YELLOW + f"Premision deny, first close file: {path}")
             continue
 
     if xls is None:
@@ -86,6 +100,11 @@ def read(df, month, sheet, celkom=1):
             return 0, date
 
         if celkom == 0:
+
+            if df.iloc[index, 7] == 0:
+                print(Fore.CYAN + f"Skipp: Celkem = 0")
+                return 0, date
+
             for i in range(index + 1, len(df)):
                 end = df.iloc[i, 0]
                 if isinstance(end, str) and end.lower() in {"odeslano", "odesláno"}:
@@ -162,7 +181,7 @@ def main():
     month = 1
     year = 2025
     black_list = {"Adriaan Van Selm", "argoterra-cz", "Hájek Pavel_společnosti"}
-    extra_list = set()  # ak chcem spracovat IBA konkretne firmy zadam ich do extra_list
+    extra_list = {"Zle"} # set()  # ak chcem spracovat IBA konkretne firmy zadam ich do extra_list
                         # ak nie je prazdny ignoruje vsetko ostatne
 
 
