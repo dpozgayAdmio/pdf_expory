@@ -46,7 +46,7 @@ def get_sheets(path, month, year, tryes=None):
             xls = pd.ExcelFile(path)
             break
         except PermissionError:
-            print(Fore.YELLOW + f"Premision deny, first close file: {path}")
+            my_print(WARNING, "Premision deny, first close file: {path}")
             continue
 
     if xls is None:
@@ -55,9 +55,11 @@ def get_sheets(path, month, year, tryes=None):
     sheets = xls.sheet_names
     to_process = []
     current_months = MONTHS[month]
+    sheets_names = ""
 
     for sheet_name in sheets:
-        print(Fore.BLUE + sheet_name, end=", ")
+        sheets_names += sheet_name + ", "
+        # my_print(INFO, sheet_name, end=", ")
         for c_m in current_months:
             if c_m in sheet_name:
                 to_process.append(sheet_name)
@@ -65,7 +67,8 @@ def get_sheets(path, month, year, tryes=None):
         # Predosli rok kvoli zavierkam
         if ("zav" in sheet_name or "záv" in sheet_name) and  str(year - 1) in sheet_name:
             to_process.append(sheet_name)
-    print()
+    my_print(INFO, sheets_names)
+    my_print(None, "")
     return to_process
 
 
@@ -74,12 +77,12 @@ def read(df, month, sheet, celkom=1):
     for index, row in df.iterrows():
         if index == 11 and row[4] == "DUZP":
             date = row[5]
-            print(date)
+            # print(date)
             if isinstance(date, str):
                 try:
                     date = datetime.strptime(date, "%d.%m.%Y")
                 except ValueError:
-                    print(Fore.RED + f"Value error in date {date}")
+                    my_print(ERROR, f"Value error in date {date}")
                     return 0, date
 
         if isinstance(row[0], str) and ("total" in row[0].lower() or "celkem" in row[0].lower()):
@@ -88,31 +91,31 @@ def read(df, month, sheet, celkom=1):
         try:
             if index == 15 and (row[1].strip().lower() not in MONTHS[date.month] or date.month != month):
                 if "záv" in sheet:
-                    print(Fore.RED + "skipp", f"not this ZAVIERKA: {row[1].lower()}, {date.month} but is {month}")
+                    my_print(ERROR, "skipp " + f"not this ZAVIERKA: {row[1].lower()}, {date.month} but is {month}")
                 else:
-                    print(Fore.RED + f"invalid mont: {row[1].lower()} {date.month}")
+                    my_print(ERROR, f"invalid mont: {row[1].lower()} {date.month}")
                 return  0, date
         except AttributeError:
-            print(Fore.RED + f"EXEPT error with: {row[1]}")
+            # my_print(ERROR, f"EXEPT error with: {row[1]}")
             if pd.isna(row[1]):
                 # TODO: zvazil by som continue alebo to sem dodat
-                print(Fore.RED + "cant find month text")
+                my_print(ERROR, "cant find month text")
             return 0, date
 
         if celkom == 0:
 
             if df.iloc[index, 7] == 0:
-                print(Fore.CYAN + f"Skipp: Celkem = 0")
+                my_print(SKIPP, f"Skipp: Celkem = 0")
                 return 0, date
 
             for i in range(index + 1, len(df)):
                 end = df.iloc[i, 0]
                 if isinstance(end, str) and end.lower() in {"odeslano", "odesláno"}:
                     return index + 1, date
-            print(Fore.RED + f"Cant finde end \"ODESLANO\": {index + 1 + len(df)}")
+            my_print(ERROR, f"Cant finde end \"ODESLANO\": {index + 1 + len(df)}")
             return 0, date
 
-    print(Fore.RED + F"Cant found \"celkem\": {index}")
+    my_print(ERROR, F"Cant found \"celkem\": {index}")
     return 0, date
 
 
@@ -127,7 +130,7 @@ def save_ugly(df, row):
 
     # 4. Ulož ako PDF
     plt.savefig("export.pdf", bbox_inches='tight')
-    print(Fore.GREEN + "Úspešne exportované do export.pdf")
+    my_print(GOOD, "Úspešne exportované do export.pdf")
 
 
 def save(path, file_name, sheet, row, out_name, debug_mode=False):
@@ -142,7 +145,7 @@ def save(path, file_name, sheet, row, out_name, debug_mode=False):
     excel.Visible = False
 
     if not os.path.exists(path + '\\Dodací listy'):
-        print(Fore.RED + "Cant find file \"Dodací listy\"")
+        my_print(ERROR, "Cant find file \"Dodací listy\"")
         return False
 
     # Otvor
@@ -159,13 +162,13 @@ def save(path, file_name, sheet, row, out_name, debug_mode=False):
     # Export do PDF
     out_path = path + '\\Dodací listy' + "\\" + out_name
     if os.path.exists(out_path + ".pdf"):
-        print(Fore.RED + f"File allredy exist: {out_path}")
+        my_print(ERROR, f"File allredy exist: {out_path}")
         wb.Close(SaveChanges=False)
         excel.Quit()
         return False
 
     ws.ExportAsFixedFormat(0, out_path)
-    print(Fore.GREEN + f"savet to: {out_path}")
+    my_print(GOOD, f"savet to: {out_path}")
 
     # Zavri
     wb.Close(SaveChanges=False)
@@ -181,7 +184,7 @@ def main():
     month = 1
     year = 2025
     black_list = {"Adriaan Van Selm", "argoterra-cz", "Hájek Pavel_společnosti"}
-    extra_list = {"Zle"} # set()  # ak chcem spracovat IBA konkretne firmy zadam ich do extra_list
+    extra_list = set()  # ak chcem spracovat IBA konkretne firmy zadam ich do extra_list
                         # ak nie je prazdny ignoruje vsetko ostatne
 
 
@@ -191,34 +194,34 @@ def main():
     init(autoreset=True)
 
     for sub_folder in os.listdir(folder):
-        print(Fore.BLUE + f"Process company: {sub_folder}")
+        my_print(INFO, f"Process company: {sub_folder}")
         find = False
         saving = False
 
         if extra_list and sub_folder not in extra_list:
-            print(Fore.CYAN + "Skipp beacous extra")
-            print("------------------------------")
+            my_print(SKIPP, "Skipp beacous extra")
+            my_print(None, "------------------------------")
             continue
 
         if not isdir(folder + '\\' + sub_folder):
-            print(Fore.YELLOW + "Not file")
-            print("------------------------------")
+            my_print(WARNING, "Not file")
+            my_print(None, "------------------------------")
             continue
 
         if sub_folder in black_list:
-            print(Fore.YELLOW + "Black list")
-            print("------------------------------")
+            my_print(WARNING, "Black list")
+            my_print(None, "------------------------------")
             continue
 
         for file in os.listdir(folder + '\\' + sub_folder):
             if "Dodací list 2025" in file:
                 path = folder + '\\' + sub_folder + "\\" + file
-                print(f"Find: {path}")
+                my_print(None, f"Find: {path}")
                 sheets_to_process = get_sheets(path, month, year)
 
                 for sheet in sheets_to_process:
                     check = False
-                    print(Fore.YELLOW + sheet, datetime.now().strftime("%H:%M:%S"))
+                    my_print(WARNING, sheet + " " + datetime.now().strftime("%H:%M:%S"))
                     # nacitaj sheet
                     df = pd.read_excel(path, sheet_name=sheet, header=None)
 
@@ -229,12 +232,12 @@ def main():
                         row_index, date = read(df, month, sheet)
 
                     if row_index == 0:
-                        print()
+                        my_print(None, "")
                         continue
 
                     if "záv" not in sheet and date.month != month:
-                        print(Fore.RED + "ERROR date")
-                        print()
+                        my_print(ERROR, "ERROR date")
+                        my_print(None, "")
                         continue
 
                     # exportuj do pdf a uloz
@@ -251,14 +254,14 @@ def main():
                     if saving and not check:
                         compliet_z += 1
 
-                    print()
+                    my_print(None, "")
 
                 find = True
 
         if not find:
-            print(Fore.RED + f"Nenajdeny subor Dodací list 2025!!!")
+            my_print(ERROR, f"Nenajdeny subor Dodací list 2025!!!")
 
-        print("------------------------------")
+        my_print(None, "------------------------------")
 
     print(compliet_dl, compliet_z)
 
