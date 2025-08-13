@@ -39,6 +39,7 @@ def my_print(status, text):
         print(text)
     return 0
 
+
 def get_sheets(path, month, year, tryes=None):
     xls = None
     for _ in range(5):
@@ -60,25 +61,33 @@ def get_sheets(path, month, year, tryes=None):
     for sheet_name in sheets:
         sheets_names += sheet_name + ", "
         # my_print(INFO, sheet_name, end=", ")
-        for c_m in current_months:
-            if c_m in sheet_name:
-                to_process.append(sheet_name)
 
         # Predosli rok kvoli zavierkam
-        if ("zav" in sheet_name or "záv" in sheet_name) and  str(year - 1) in sheet_name:
+        if ("zav" in sheet_name or "záv" in sheet_name) and str(year - 1) in sheet_name:
             to_process.append(sheet_name)
+
+        # stvrtrocne
+        elif (".q" in sheet_name.lower() and str(year) in sheet_name):
+            to_process.append((sheet_name))
+
+        else:
+            for c_m in current_months:
+                if c_m in sheet_name:
+                    to_process.append(sheet_name)
+                    break
+
     my_print(INFO, sheets_names)
     my_print(None, "")
     return to_process
 
 
-def read(df, month, sheet, celkom=1):
+def read(df, month, year, sheet, celkom=1):
     date = None
     index = 0
     for index, row in df.iterrows():
+        # WWW ma trocha posunutu tabulku ("DUZP:" 3, date 4)
         if index == 11 and row[4] == "DUZP":
             date = row[5]
-            # print(date)
             if isinstance(date, str):
                 try:
                     date = datetime.strptime(date, "%d.%m.%Y")
@@ -91,15 +100,26 @@ def read(df, month, sheet, celkom=1):
 
         try:
             if index == 15 and (row[1].strip().lower() not in MONTHS[date.month] or date.month != month):
-                if "záv" in sheet:
-                    my_print(ERROR, "skipp " + f"not this ZAVIERKA: {row[1].lower()}, {date.month} but is {month}")
+                if ".q" not in sheet.lower():
+                    if "záv" in sheet or 'zav' in sheet:
+                        my_print(ERROR, "skipp " + f"not this ZAVIERKA: {row[1].lower()}, {date.month} but is {month}")
+                    else:
+                        my_print(ERROR, f"invalid mont: {row[1].lower()} {date.month}")
+                    return  0, date
+
+                # mozno vymysliet niak ze Q nepotrebuju mesiac napisany
                 else:
-                    my_print(ERROR, f"invalid mont: {row[1].lower()} {date.month}")
-                return  0, date
-        except AttributeError:
+                    my_print(SKIPP, f"Skipp unexepted month: {date}")
+                    return 0, date
+
+        except AttributeError as e:
             if pd.isna(row[1]):
                 # TODO: zvazil by som continue alebo to sem dodat
-                my_print(ERROR, "cant find month text")
+                my_print(ERROR, f"cant find month text")
+            # TODO: asi tu
+            else:
+                my_print(ERROR, f"Neocakavany text v mieste mesiaca: {row[1]}, error: {e}")
+                #assert False, "Nie none ale nieco zvlastne"
             return 0, date
 
         if celkom == 0:
@@ -178,13 +198,22 @@ def save(path, file_name, sheet, row, out_name, debug_mode=False):
 
 def main():
     warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl.worksheet._reader")
+
+
     folder = r"C:\Users\dominik.pozgay\OneDrive - ADMIO s.r.o\FVL"
     #folder = "C:\Users\dominik.pozgay\OneDrive - ADMIO s.r.o\ADMIO - FV_DL"
-    month = 1
+
+    month = 7
     year = 2025
-    black_list = {"Adriaan Van Selm", "argoterra-cz", "Hájek Pavel_společnosti"}
+
+    black_list = {"Adriaan Van Selm", "argoterra-cz", "Hájek Pavel_společnosti", "magno", "shaw paul", "www"}
     extra_list = set()  # ak chcem spracovat IBA konkretne firmy zadam ich do extra_list
                         # ak nie je prazdny ignoruje vsetko ostatne
+    mor_in_one = {
+        "jic": 4,
+        "moventum": 2,
+        'Nyavantgarde': 2
+    }
 
 
     compliet_dl = 0
@@ -195,7 +224,7 @@ def main():
     for sub_folder in os.listdir(folder):
         my_print(INFO, f"Process company: {sub_folder}")
         find = False
-        saving = False
+        # saving = False
 
         if extra_list and sub_folder not in extra_list:
             my_print(SKIPP, "Skipp beacous extra")
@@ -209,11 +238,13 @@ def main():
 
         if sub_folder in black_list:
             my_print(WARNING, "Black list")
+            if sub_folder == "www":
+                my_print(WARNING, "Make manualy")
             my_print(None, "------------------------------")
             continue
 
         for file in os.listdir(folder + '\\' + sub_folder):
-            if "Dodací list 2025" in file:
+            if "dodací list" in file.lower() and str(year) in file:
                 path = folder + '\\' + sub_folder + "\\" + file
                 my_print(None, f"Find: {path}")
                 sheets_to_process = get_sheets(path, month, year)
@@ -225,17 +256,18 @@ def main():
                     df = pd.read_excel(path, sheet_name=sheet, header=None)
 
                     # vyber oblast a skontroluj datum
-                    if "jic" in path.lower():
-                        row_index, date = read(df, month, sheet, celkom=4)
-                    else:
-                        row_index, date = read(df, month, sheet)
+                    # if "jic" in path.lower():
+                    #     row_index, date = read(df, month, sheet, celkom=4)
+                    # else:
+                    #     row_index, date = read(df, month, sheet)
+                    row_index, date = read(df, month, year, sheet, celkom=mor_in_one.get(sub_folder, 1))
 
                     if row_index == 0:
                         my_print(None, "")
                         continue
 
-                    if "záv" not in sheet and date.month != month:
-                        my_print(ERROR, "ERROR date")
+                    if (("záv" not in sheet or 'zav' not in sheet) or ".q" not in sheet.lower()) and date.month != month:
+                        my_print(ERROR, f"ERROR date: {sheet}, {date}")
                         my_print(None, "")
                         continue
 
@@ -258,7 +290,7 @@ def main():
                 find = True
 
         if not find:
-            my_print(ERROR, f"Nenajdeny subor Dodací list 2025!!!")
+            my_print(ERROR, f"Cant find Dodací list {year}!!!")
 
         my_print(None, "------------------------------")
 
